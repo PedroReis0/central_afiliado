@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { detectMarketplaceFromText } from '../services/marketplace.js';
 import { parseOffersDeterministic } from '../services/parser.js';
 import { parseWithGemini, parseWithOpenAI } from '../services/llm.js';
+import { logEvent } from '../services/logs.js';
 
 function stableHash(payload) {
   const json = JSON.stringify(payload);
@@ -24,23 +25,31 @@ function pickMediaUrl(payload) {
 
 function extractFromEvolution(body) {
   const root = Array.isArray(body) ? body[0] : body;
-  const data = root?.body?.data || root?.data || {};
+  const bodyRoot = root?.body || root || {};
+  const data = bodyRoot?.data || root?.data || {};
   const key = data?.key || {};
   const message = data?.message || {};
   const imageMessage = message?.imageMessage || {};
 
   const instanceId =
-    root?.body?.instanceId ||
+    bodyRoot?.instanceId ||
     root?.instanceId ||
-    root?.body?.instance ||
+    bodyRoot?.instance ||
     root?.instance ||
     data?.instanceId ||
     data?.instance ||
     '';
 
+  const instanceName =
+    bodyRoot?.instance ||
+    root?.instance ||
+    bodyRoot?.instanceName ||
+    root?.instanceName ||
+    '';
+
   const groupId =
     key?.remoteJid ||
-    root?.body?.group_id ||
+    bodyRoot?.group_id ||
     root?.group_id ||
     root?.groupId ||
     '';
@@ -48,9 +57,9 @@ function extractFromEvolution(body) {
   const legenda =
     imageMessage?.caption ||
     message?.conversation ||
-    root?.body?.caption ||
-    root?.body?.text ||
-    root?.body?.legenda ||
+    bodyRoot?.caption ||
+    bodyRoot?.text ||
+    bodyRoot?.legenda ||
     root?.caption ||
     root?.text ||
     root?.legenda ||
@@ -58,10 +67,18 @@ function extractFromEvolution(body) {
 
   return {
     instanceId,
+    instanceName,
     groupId,
     legenda,
-    mediaUrl: pickMediaUrl(root?.body || root),
-    messageId: key?.id || ''
+    mediaUrl: pickMediaUrl(bodyRoot),
+    mediaUrlRaw: imageMessage?.url || null,
+    mediaDirectPath: imageMessage?.directPath || null,
+    mediaMimetype: imageMessage?.mimetype || null,
+    messageId: key?.id || '',
+    senderId: key?.participant || null,
+    senderIdAlt: key?.participantAlt || null,
+    messageType: data?.messageType || null,
+    messageTimestamp: data?.messageTimestamp || null
   };
 }
 
@@ -75,49 +92,42 @@ function validateMinimum({ instanceId, groupId, legenda }) {
 
 export function registerWebhookRoutes(app) {
   app.post('/webhook', async (request, reply) => {
+    let correlationId = crypto.randomUUID();
     const payload = request.body || {};
-    const { instanceId, groupId, legenda, mediaUrl, messageId } = extractFromEvolution(payload);
+    try {
+      const {
+        instanceId,
+        instanceName,
+        groupId,
+        legenda,
+        mediaUrl,
+        mediaUrlRaw,
+        mediaDirectPath,
+        mediaMimetype,
+        messageId,
+        senderId,
+        senderIdAlt,
+        messageType,
+        messageTimestamp
+      } = extractFromEvolution(payload);
 
-    const missing = validateMinimum({ instanceId, groupId, legenda });
-    if (missing.length > 0) {
-      request.log.warn({ missing }, 'webhook_payload_invalido');
-      return reply.code(422).send({
-        ok: false,
-        error: 'missing_required_fields',
-        missing
-      });
-    }
+      const missing = validateMinimum({ instanceId, groupId, legenda });
+      if (missing.length > 0) {
+        request.log.warn({ missing }, 'webhook_payload_invalido');
+        await logEvent({
+          correlationId,
+          evento: 'webhook_payload_invalido',
+          nivel: 'warn',
+          mensagem: 'Campos obrigatorios ausentes',
+          payload: { missing }
+        });
+        return reply.code(422).send({
+          ok: false,
+          error: 'missing_required_fields',
+          missing
+        });
+      }
 
-    const { marketplace, link: linkScrape } = detectMarketplaceFromText(legenda);
-
-    const mensagemHash = stableHash({ instanceId, groupId, messageId, legenda, mediaUrl, linkScrape, payload });
-    const correlationId = crypto.randomUUID();
-
-    const insertSql = `
-      insert into mensagens_recebidas
-        (instance_id, group_id, message_id, legenda, marketplace, link_scrape, media_url, mensagem_hash, correlation_id, status)
-      values
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'recebida')
-      on conflict (mensagem_hash) do nothing
-      returning id
-    `;
-
-    const result = await query(insertSql, [
-      instanceId,
-      groupId,
-      messageId,
-      legenda,
-      marketplace,
-      linkScrape,
-      mediaUrl,
-      mensagemHash,
-      correlationId
-    ]);
-
-    const inserted = result.rowCount > 0;
-    const mensagemId = inserted ? result.rows[0]?.id : null;
-
-    if (inserted) {
       let parsedItems = parseOffersDeterministic(legenda);
       const hasValidDeterministic = parsedItems.some((i) => i.status);
 
@@ -133,59 +143,110 @@ export function registerWebhookRoutes(app) {
         }
       }
 
-      const batchId = crypto.randomUUID();
-      const multi = parsedItems.length > 1;
-      let ordem = 1;
+      const { marketplace, link: linkScrape } = detectMarketplaceFromText(legenda);
+      const mensagemHash = stableHash({ instanceId, groupId, messageId, legenda, mediaUrl, linkScrape, payload });
 
-      const offerSql = `
-        insert into ofertas_parseadas
-          (mensagem_id, batch_id, multi_oferta, multi_ordem, marketplace, nome_produto, oferta_completa, cupons, valor_venda, link_scrape, status)
+      const insertSql = `
+        insert into mensagens_recebidas
+          (instance_id, instance_name, group_id, message_id, sender_id, sender_id_alt, message_type,
+           legenda, marketplace, link_scrape, media_url, media_url_raw, media_direct_path, media_mimetype,
+           message_timestamp, mensagem_hash, correlation_id, status)
         values
-          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'parseada')
+          ($1, $2, $3, $4, $5, $6, $7,
+           $8, $9, $10, $11, $12, $13, $14,
+           $15, $16, $17, 'recebida')
+        on conflict (mensagem_hash) do nothing
+        returning id
       `;
 
-      for (const item of parsedItems) {
-        const nome = item?.nome || null;
-        const valor = typeof item?.valor === 'number' ? item.valor : null;
-        const cupomArray = item?.cupom ? [item.cupom] : [];
-        const oferta = item?.oferta || null;
-        const link = item?.link || linkScrape || null;
+      const result = await query(insertSql, [
+        instanceId,
+        instanceName || null,
+        groupId,
+        messageId,
+        senderId,
+        senderIdAlt,
+        messageType,
+        legenda,
+        marketplace,
+        linkScrape,
+        mediaUrl,
+        mediaUrlRaw,
+        mediaDirectPath,
+        mediaMimetype,
+        messageTimestamp,
+        mensagemHash,
+        correlationId
+      ]);
 
-        await query(offerSql, [
-          mensagemId,
-          batchId,
-          multi,
-          ordem,
-          marketplace,
-          nome,
-          oferta,
-          cupomArray,
-          valor,
-          link
-        ]);
+      const inserted = result.rowCount > 0;
+      const mensagemId = inserted ? result.rows[0]?.id : null;
 
-        ordem += 1;
+      if (inserted) {
+        const batchId = crypto.randomUUID();
+        const multi = parsedItems.length > 1;
+        let ordem = 1;
+
+        const offerSql = `
+          insert into ofertas_parseadas
+            (mensagem_id, batch_id, multi_oferta, multi_ordem, marketplace, nome_produto, oferta_completa, cupons, valor_venda, link_scrape, status)
+          values
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'parseada')
+        `;
+
+        for (const item of parsedItems) {
+          const nome = item?.nome || null;
+          const valor = typeof item?.valor === 'number' ? item.valor : null;
+        const cupomArray = Array.isArray(item?.cupons) ? item.cupons : (item?.cupom ? [item.cupom] : []);
+          const oferta = item?.oferta || null;
+          const link = item?.link || linkScrape || null;
+
+          await query(offerSql, [
+            mensagemId,
+            batchId,
+            multi,
+            ordem,
+            marketplace,
+            nome,
+            oferta,
+            cupomArray,
+            valor,
+            link
+          ]);
+
+          ordem += 1;
+        }
       }
+
+      request.log.info({
+        instanceId,
+        groupId,
+        legenda,
+        mediaUrl,
+        marketplace,
+        linkScrape,
+        parsed: inserted ? 'ok' : 'skip',
+        mensagemHash,
+        correlationId,
+        inserted
+      }, 'mensagem_recebida');
+
+      return reply.code(200).send({
+        ok: true,
+        correlation_id: correlationId,
+        duplicate: !inserted
+      });
+    } catch (err) {
+      request.log.error({ err }, 'webhook_error');
+      await logEvent({
+        correlationId,
+        evento: 'webhook_error',
+        nivel: 'error',
+        mensagem: err?.message || 'Erro no webhook',
+        payload: { stack: err?.stack }
+      });
+      return reply.code(500).send({ ok: false, error: 'webhook_error', correlation_id: correlationId });
     }
-
-    request.log.info({
-      instanceId,
-      groupId,
-      legenda,
-      mediaUrl,
-      marketplace,
-      linkScrape,
-      parsed: inserted ? 'ok' : 'skip',
-      mensagemHash,
-      correlationId,
-      inserted
-    }, 'mensagem_recebida');
-
-    return reply.code(200).send({
-      ok: true,
-      correlation_id: correlationId,
-      duplicate: !inserted
-    });
   });
 
   app.get('/health', async () => ({ ok: true }));

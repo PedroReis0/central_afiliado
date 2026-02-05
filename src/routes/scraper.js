@@ -1,9 +1,18 @@
+import crypto from 'crypto';
 import { scrapeMercadoLivre } from '../services/scraper_ml.js';
+import { logEvent } from '../services/logs.js';
 
 export function registerScraperRoutes(app) {
   app.post('/scrape/mercadolivre', async (request, reply) => {
+    const correlationId = request.headers['x-correlation-id'] || crypto.randomUUID();
     const { link } = request.body || {};
     if (!link) {
+      await logEvent({
+        correlationId,
+        evento: 'scrape_ml_link_required',
+        nivel: 'warn',
+        mensagem: 'link_required'
+      });
       return reply.code(422).send({ ok: false, error: 'link_required' });
     }
 
@@ -12,13 +21,27 @@ export function registerScraperRoutes(app) {
       return reply.code(200).send(result);
     } catch (err) {
       request.log.error({ err }, 'scrape_failed');
-      return reply.code(500).send({ ok: false, error: 'scrape_failed' });
+      await logEvent({
+        correlationId,
+        evento: 'scrape_ml_error',
+        nivel: 'error',
+        mensagem: err?.message || 'scrape_failed',
+        payload: { stack: err?.stack }
+      });
+      return reply.code(500).send({ ok: false, error: 'scrape_failed', correlation_id: correlationId });
     }
   });
 
   app.post('/scrape/mercadolivre/oferta', async (request, reply) => {
+    const correlationId = request.headers['x-correlation-id'] || crypto.randomUUID();
     const { oferta_id: ofertaId } = request.body || {};
     if (!ofertaId) {
+      await logEvent({
+        correlationId,
+        evento: 'scrape_ml_oferta_id_required',
+        nivel: 'warn',
+        mensagem: 'oferta_id_required'
+      });
       return reply.code(422).send({ ok: false, error: 'oferta_id_required' });
     }
 
@@ -27,11 +50,25 @@ export function registerScraperRoutes(app) {
     );
 
     if (ofertaRes.rowCount === 0) {
+      await logEvent({
+        correlationId,
+        evento: 'scrape_ml_oferta_not_found',
+        nivel: 'warn',
+        mensagem: 'oferta_not_found',
+        payload: { oferta_id: ofertaId }
+      });
       return reply.code(404).send({ ok: false, error: 'oferta_not_found' });
     }
 
     const link = ofertaRes.rows[0].link_scrape;
     if (!link) {
+      await logEvent({
+        correlationId,
+        evento: 'scrape_ml_sem_link',
+        nivel: 'warn',
+        mensagem: 'sem_link',
+        payload: { oferta_id: ofertaId }
+      });
       return reply.code(200).send({ ok: false, error: 'sem_link' });
     }
 
@@ -54,7 +91,14 @@ export function registerScraperRoutes(app) {
       return reply.code(200).send(result);
     } catch (err) {
       request.log.error({ err }, 'scrape_failed');
-      return reply.code(500).send({ ok: false, error: 'scrape_failed' });
+      await logEvent({
+        correlationId,
+        evento: 'scrape_ml_oferta_error',
+        nivel: 'error',
+        mensagem: err?.message || 'scrape_failed',
+        payload: { stack: err?.stack }
+      });
+      return reply.code(500).send({ ok: false, error: 'scrape_failed', correlation_id: correlationId });
     }
   });
 }

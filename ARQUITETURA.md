@@ -36,21 +36,21 @@ Saidas: media_url armazenada.
 Banco: mensagens_recebidas, storage.
 Detalhes: processamento assincrono com timeout e retry curto. A imagem e baixada apenas uma vez e reutilizada em todo o fluxo.
 
-3. marketplace-switch
-Responsabilidade: identificar marketplace pelo link e canonizar.
-Entradas: mensagem_normalizada.
-Saidas: marketplace + link_scrape.
-Detalhes: fallback para unknown, com descarte controlado.
-
-4. parser-llm
+3. parser-llm
 Responsabilidade: extrair campos do texto e gerar JSON estruturado.
 Entradas: texto da legenda + marketplace.
 Saidas: ofertas_parseadas (1..N) com batch_id.
 Banco: ofertas_parseadas.
 Detalhes: timeout curto, modelo principal + fallback, validacao de JSON.
 
-5. scraper
-Responsabilidade: usar Gina.ai para markdown e JS extraction sem LLM.
+4. marketplace-switch
+Responsabilidade: identificar marketplace pelo link e canonizar.
+Entradas: mensagem_normalizada.
+Saidas: marketplace + link_scrape.
+Detalhes: fallback para unknown, com descarte controlado.
+
+5. scraper-mercadolivre
+Responsabilidade: usar Gina.ai para markdown e JS extraction sem LLM (apenas fluxo ML).
 Entradas: link_scrape.
 Saidas: dados_enriquecidos opcionais.
 Detalhes: nao bloqueia envio. Se falhar, segue sem enrich.
@@ -61,6 +61,26 @@ Entradas: oferta_parseada.
 Saidas: produto_ok ou fila_cadastro_produto.
 Banco: produtos, fila_cadastro_produto.
 Detalhes: chave de produto por marketplace + url_normalizada ou outro identificador. A imagem associada ao cadastro reutiliza a mesma midia salva no storage (nao refaz download).
+Regra de busca por produto principal (nome_oficial):
+- Primeiro busca candidatos semelhantes em produtos principais (ativos ou pendentes).
+- Se houver match 100% identico, usar direto.
+- Se nao houver match exato, enviar os 5 mais semelhantes + nome_oficial para a LLM decidir:
+  - retorna o produto principal escolhido, ou
+  - retorna "nenhum" se nao bater.
+Regra de midia quando nao houver correspondencia:
+- O download da midia so acontece quando um novo produto principal for cadastrado como pendente.
+- Se a LLM retornar "nenhum" (ou seja, novo produto principal pendente), baixar a foto do WhatsApp usando a API da Evolution.
+- Salvar a foto no balde (storage) e reutilizar:
+  - como foto do produto no sistema,
+  - e como midia padrao quando enviar a oferta.
+Regra de foto por produto:
+- Existe apenas 1 foto por produto principal.
+- Cadastros de produto marketplace reutilizam a foto do produto principal.
+Storage (Supabase):
+- Bucket: produtos
+- Caminho: produtos/{produto_id}/principal.jpg (ou .png conforme mimetype)
+- A referencia da foto fica salva no produto principal (foto_url/foto_storage_path).
+- Registrar a data de download da foto no produto principal (foto_downloaded_at).
 Regras de Identificacao:
 - produto_id universal: gerado no primeiro cadastro do produto e reutilizado entre marketplaces.
 - marketplace_product_id: identificador do produto dentro de cada marketplace.
@@ -149,16 +169,16 @@ Regras de Download de Midia
 - Storage: Supabase Storage.
 
 Fluxo Detalhado - Parser
-1. marketplace-switch detecta marketplace e canoniza URL
-2. parser-llm recebe texto + marketplace
+1. parser-llm recebe texto + marketplace (se ainda nao resolvido, usar heuristica inicial)
+2. marketplace-switch detecta marketplace e canoniza URL
 3. parser retorna JSON estruturado
 4. valida JSON e cria batch_id
 5. salva ofertas_parseadas (1..N)
 6. se JSON invalido, usa fallback
 7. se falha definitiva, descarta com motivo
 
-Fluxo Detalhado - Scraper (opcional)
-1. scraper recebe link_scrape
+Fluxo Detalhado - Scraper (opcional, ML)
+1. scraper-mercadolivre recebe link_scrape
 2. Gina.ai gera markdown
 3. JS extraction corta bloco e extrai campos
 4. salva dados_enriquecidos

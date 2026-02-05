@@ -2,20 +2,29 @@
 -- PostgreSQL (Supabase)
 
 create extension if not exists "pgcrypto";
+create extension if not exists "pg_trgm";
 
 -- mensagens_recebidas
 create table if not exists mensagens_recebidas (
   id uuid primary key default gen_random_uuid(),
   instance_id text not null,
+  instance_name text,
   group_id text not null,
   message_id text,
+  sender_id text,
+  sender_id_alt text,
+  message_type text,
   legenda text,
   marketplace text,
   link_scrape text,
   media_url text,
+  media_url_raw text,
+  media_direct_path text,
+  media_mimetype text,
   media_storage_path text,
   mensagem_hash text not null,
   correlation_id text not null,
+  message_timestamp bigint,
   received_at timestamptz not null default now(),
   status text not null default 'recebida',
   unique (mensagem_hash)
@@ -31,6 +40,7 @@ create table if not exists ofertas_parseadas (
   batch_id uuid not null,
   multi_oferta boolean not null default false,
   multi_ordem int not null default 1,
+  tipo_oferta text not null default 'padrao',
   marketplace text not null,
   nome_produto text,
   nome_oficial text,
@@ -73,6 +83,10 @@ create table if not exists produtos (
   nome text not null,
   nome_msg text,
   nome_oficial text,
+  foto_url text,
+  foto_storage_path text,
+  foto_mimetype text,
+  foto_downloaded_at timestamptz,
   categoria_id uuid references categorias(id) on delete set null,
   subcategoria_id uuid references subcategorias(id) on delete set null,
   ativo boolean not null default true,
@@ -136,6 +150,7 @@ create table if not exists cupons_pendentes (
 create table if not exists instancias (
   id uuid primary key default gen_random_uuid(),
   instance_id text not null unique,
+  instance_name text,
   status text not null default 'ativa',
   criado_em timestamptz not null default now()
 );
@@ -145,6 +160,7 @@ create table if not exists grupos (
   id uuid primary key default gen_random_uuid(),
   group_id text not null,
   instance_id text not null references instancias(instance_id) on delete cascade,
+  group_name text,
   ativo boolean not null default true,
   criado_em timestamptz not null default now(),
   unique (group_id, instance_id)

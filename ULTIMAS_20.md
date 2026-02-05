@@ -17,6 +17,15 @@
 14. `marketplace_product_id` no ML = `catalogo_id`.
 15. O endpoint `/scrape/mercadolivre/oferta` salva `nome_oficial`, `link_limpo`, `marketplace_product_id` na oferta.
 16. O endpoint `/pipeline/oferta/processar` decide produto_ok ou fila com base nesses campos.
+17. O `parser-llm` vem antes do `marketplace-switch` no fluxo.
+18. O scraper da Jina fica nomeado/vinculado ao fluxo de Mercado Livre para evitar confusao com outros marketplaces.
+19. Na verificacao do produto principal por `nome_oficial`, se nao houver match exato, enviamos os 5 mais semelhantes para a LLM decidir (ou retornar "nenhum").
+20. Se a LLM indicar "nenhum" (novo produto principal pendente), baixamos a foto do WhatsApp via API da Evolution.
+21. A foto baixada e salva no balde (storage) e reutilizada como foto do produto no sistema e como midia padrao no envio da oferta.
+22. Regra: existe apenas 1 foto por produto principal, e os cadastros de produto marketplace reutilizam a foto do principal.
+23. Storage da foto: Supabase Storage, bucket `produtos`, caminho `produtos/{produto_id}/principal.*`; referencia salva no produto principal.
+24. O download da midia so ocorre quando um novo produto principal for cadastrado como pendente.
+25. Registrar a data do download da foto no produto principal (foto_downloaded_at).
 
 ## Ultimas 4 mensagens (literais)
 1. "calma, estamos falando de duas filas diferentes"

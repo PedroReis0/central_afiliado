@@ -70,20 +70,21 @@ function isCouponNoise(line) {
   return /(%\s*off|off\b|cupom no anuncio|ja aplicado|ative abaixo do produto)/i.test(l);
 }
 
-function extractCoupon(lines) {
+function extractCoupons(lines) {
+  const found = new Set();
   for (const line of lines) {
     const l = toAscii(line.toLowerCase());
     if (!/(cupom|codigo|use o cupom)/i.test(l)) continue;
-    if (isCouponNoise(line)) return null;
-    if (/sem\s+cupom/i.test(l)) return null;
+    if (isCouponNoise(line)) continue;
+    if (/sem\s+cupom/i.test(l)) continue;
     const upper = line.toUpperCase();
     const matches = upper.match(/[A-Z0-9_-]{4,20}/g) || [];
     for (const code of matches) {
       if (code === 'CUPOM' || code === 'CODIGO') continue;
-      return code;
+      found.add(code);
     }
   }
-  return null;
+  return Array.from(found);
 }
 
 function pickTitle(lines) {
@@ -176,8 +177,8 @@ function parseSingleBlock(text, fallbackLink) {
   const blockLink = extractMercadoLivreLink(text) || fallbackLink || null;
   const title = pickTitle(lines);
   const { value, line: priceLine } = extractFinalPrice(lines);
-  const coupon = extractCoupon(lines);
-  const couponLine = coupon ? lines.find((l) => l.toUpperCase().includes(coupon)) : null;
+  const coupons = extractCoupons(lines);
+  const couponLine = coupons.length > 0 ? lines.find((l) => coupons.some((c) => l.toUpperCase().includes(c))) : null;
   const oferta = buildOferta(lines, title, blockLink, priceLine, couponLine);
 
   const status = Boolean(blockLink && title && (value !== null || oferta));
@@ -186,7 +187,7 @@ function parseSingleBlock(text, fallbackLink) {
     status,
     nome: title,
     valor: value,
-    cupom: coupon,
+    cupons: coupons,
     oferta,
     link: blockLink
   };
