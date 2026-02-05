@@ -1,0 +1,15 @@
+{
+  "name": "central-afiliado",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Webhook receiver and backend services for Central Afiliado",
+  "scripts": {
+    "dev": "node src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "fastify": "^4.26.2",
+    "pg": "^8.11.5",
+    "dotenv": "^16.4.5"
+  }
+}
