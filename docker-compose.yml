@@ -8,6 +8,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-central_afiliado}
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - internal
     deploy:
