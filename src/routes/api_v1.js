@@ -865,7 +865,40 @@ export function registerApiV1Routes(app) {
       );
 
       if (instanceRes.rowCount === 0) {
-        return respondError(reply, 404, 'instance_not_found', correlationId);
+        // Fallback: Tentar buscar na API da Evolution se não estiver no banco
+        const apiData = await fetchInstances();
+        const apiList = Array.isArray(apiData) ? apiData : apiData?.instances || apiData?.data || [];
+        const found = apiList.find(i =>
+          (i?.instanceId === instanceId) ||
+          (i?.instanceName === instanceName) ||
+          (i?.name === instanceName) ||
+          (i?.instance === instanceName)
+        );
+
+        if (found) {
+          const norm = {
+            id: found?.instanceId || found?.instance_id || found?.id || found?.uuid || found?.instance || found?.name,
+            name: found?.instance || found?.instanceName || found?.name || found?.instance_name,
+            status: found?.status || found?.connectionStatus || found?.state || 'ativa'
+          };
+
+          if (norm.id && norm.name) {
+            await query(
+              `insert into instancias (instance_id, instance_name, status)
+                values ($1, $2, $3)
+                on conflict (instance_id)
+                do update set instance_name = excluded.instance_name, status = excluded.status`,
+              [norm.id, norm.name, norm.status]
+            );
+            // Atualizar a variável instance para prosseguir
+            instanceRes.rows[0] = { instance_id: norm.id, instance_name: norm.name };
+            instanceRes.rowCount = 1;
+          }
+        }
+
+        if (instanceRes.rowCount === 0) {
+          return respondError(reply, 404, 'instance_not_found_locally_or_remote', correlationId);
+        }
       }
 
       const instance = instanceRes.rows[0];
