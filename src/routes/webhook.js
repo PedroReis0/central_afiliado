@@ -90,6 +90,8 @@ function validateMinimum({ instanceId, groupId, legenda }) {
   return missing;
 }
 
+import { verifyEvolutionKey } from '../middleware/auth.js';
+
 export function registerWebhookRoutes(app) {
   app.post('/webhook', async (request, reply) => {
     let correlationId = crypto.randomUUID();
@@ -197,7 +199,7 @@ export function registerWebhookRoutes(app) {
         for (const item of parsedItems) {
           const nome = item?.nome || null;
           const valor = typeof item?.valor === 'number' ? item.valor : null;
-        const cupomArray = Array.isArray(item?.cupons) ? item.cupons : (item?.cupom ? [item.cupom] : []);
+          const cupomArray = Array.isArray(item?.cupons) ? item.cupons : (item?.cupom ? [item.cupom] : []);
           const oferta = item?.oferta || null;
           const link = item?.link || linkScrape || null;
 

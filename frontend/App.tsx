@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Login from './components/Login';
+import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import Monitor from './components/Monitor';
@@ -10,7 +11,10 @@ import Integrations from './components/Integrations';
 import { ViewState } from './types';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Initial auth state check
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return !!localStorage.getItem('token');
+  });
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
 
   const handleLogin = () => {
@@ -18,13 +22,11 @@ function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setIsAuthenticated(false);
     setCurrentView('dashboard');
   };
-
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
-  }
 
   const renderView = () => {
     switch (currentView) {
@@ -45,14 +47,22 @@ function App() {
     }
   };
 
+  // If not authenticated, verify if should show login.
+  // Although PrivateRoute handles protection, we might want to show Login explicitly if we know we are out.
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
-    <Layout 
-      currentView={currentView} 
-      onNavigate={setCurrentView} 
-      onLogout={handleLogout}
-    >
-      {renderView()}
-    </Layout>
+    <PrivateRoute onLogout={handleLogout}>
+      <Layout
+        currentView={currentView}
+        onNavigate={setCurrentView}
+        onLogout={handleLogout}
+      >
+        {renderView()}
+      </Layout>
+    </PrivateRoute>
   );
 }
 

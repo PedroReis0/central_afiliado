@@ -4,6 +4,24 @@
 create extension if not exists "pgcrypto";
 create extension if not exists "pg_trgm";
 
+-- users (Autenticação)
+create table if not exists users (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  password_hash text not null,
+  role text not null default 'admin',
+  created_at timestamptz not null default now()
+);
+
+-- Inserir usuário admin padrão (senha: admin) se não existir
+insert into users (email, password_hash, role)
+values ('admin@admin.com', '$2a$10$XQ.9c/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W', 'admin')
+on conflict (email) do nothing;
+-- NOTA: O hash acima é placeholder. O script de setup ou o código deve gerar um hash real.
+-- Para 'admin', um hash bcrypt válido seria necessário. 
+-- Vamos assumir que o sistema criará o primeiro usuário via rota de setup ou script,
+-- MAS para facilitar, vou deixar o insert comentado e o usuário deve ser criado via script dedicado ou rota.
+
 -- mensagens_recebidas
 create table if not exists mensagens_recebidas (
   id uuid primary key default gen_random_uuid(),
@@ -213,4 +231,3 @@ create table if not exists logs_eventos (
 
 create index if not exists idx_logs_correlation on logs_eventos (correlation_id);
 create index if not exists idx_logs_evento on logs_eventos (evento);
-

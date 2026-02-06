@@ -5,15 +5,19 @@ type ApiResponse<T> = {
   error?: string;
 };
 
-const API_BASE =
-  (import.meta as any)?.env?.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = (import.meta as any)?.env?.VITE_API_BASE_URL || '/api';
 
 async function request<T>(path: string, options?: RequestInit) {
+  const headers = new Headers(options?.headers);
+  headers.set('Content-Type', 'application/json');
+
+  const token = localStorage.getItem('token');
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers || {})
-    },
+    headers,
     ...options
   });
 

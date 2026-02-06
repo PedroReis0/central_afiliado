@@ -14,37 +14,48 @@ import { registerCuponsRoutes } from './routes/cupons.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerMonitorRoutes } from './routes/monitor.js';
 import { registerProdutosAdminRoutes } from './routes/produtos_admin.js';
-import { registerApiV1Routes } from './routes/api_v1.js';
+import { verifyJwt } from './middleware/auth.js';
+import { registerAuthRoutes } from './routes/auth.js';
 
 const app = Fastify({
   logger: true
 });
 
+app.decorate('verifyJwt', verifyJwt);
+
 const corsOrigin = process.env.CORS_ORIGIN || '*';
 app.addHook('onSend', async (request, reply, payload) => {
   reply.header('Access-Control-Allow-Origin', corsOrigin);
-  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Correlation-Id');
+  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Correlation-Id, apikey');
   reply.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
   return payload;
 });
 
 app.options('/*', async (request, reply) => reply.code(204).send());
 
+// Public Routes
+registerAuthRoutes(app);
 registerWebhookRoutes(app);
-registerScraperRoutes(app);
-registerCatalogRoutes(app);
-registerPipelineRoutes(app);
-registerProdutosRoutes(app);
-registerMediaRoutes(app);
-registerInstanciasRoutes(app);
-registerGruposRoutes(app);
-registerTemplatesRoutes(app);
-registerDispatcherRoutes(app);
-registerCuponsRoutes(app);
-registerDashboardRoutes(app);
-registerMonitorRoutes(app);
-registerProdutosAdminRoutes(app);
-registerApiV1Routes(app);
+
+// Protected Routes
+app.register(async (instance) => {
+  instance.addHook('preHandler', verifyJwt);
+
+  registerScraperRoutes(instance);
+  registerCatalogRoutes(instance);
+  registerPipelineRoutes(instance);
+  registerProdutosRoutes(instance);
+  registerMediaRoutes(instance);
+  registerInstanciasRoutes(instance);
+  registerGruposRoutes(instance);
+  registerTemplatesRoutes(instance);
+  registerDispatcherRoutes(instance);
+  registerCuponsRoutes(instance);
+  registerDashboardRoutes(instance);
+  registerMonitorRoutes(instance);
+  registerProdutosAdminRoutes(instance);
+  registerApiV1Routes(instance);
+});
 
 const port = Number(process.env.PORT || 3000);
 
