@@ -824,6 +824,17 @@ export function registerApiV1Routes(app) {
         battery: item?.battery || item?.batteryLevel || item?.battery_level || null
       })).filter((i) => i.id);
 
+      // Persistir no banco local para garantir que o sync de grupos funcione
+      for (const inst of normalized) {
+        await query(
+          `insert into instancias (instance_id, instance_name, status)
+           values ($1, $2, $3)
+           on conflict (instance_id)
+           do update set instance_name = excluded.instance_name, status = excluded.status`,
+          [inst.id, inst.name, inst.status]
+        );
+      }
+
       return respondSuccess(reply, normalized);
     } catch (err) {
       await logEvent({
