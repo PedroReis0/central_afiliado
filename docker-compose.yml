@@ -7,12 +7,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-central_afiliado}
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./schema.sql:/docker-entrypoint-initdb.d/init.sql
+    configs:
+      - source: db_init
+        target: /docker-entrypoint-initdb.d/init.sql
     networks:
       - internal
     deploy:
       restart_policy:
         condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
 
   backend:
     build: .
@@ -69,6 +74,10 @@ services:
 volumes:
   db_data:
 
+
+configs:
+  db_init:
+    file: ./schema.sql
 
 networks:
   internal:
