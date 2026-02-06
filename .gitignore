@@ -1,5 +1,21 @@
+# Dependências
 node_modules/
+frontend/node_modules/
+
+# Variáveis de Ambiente (SENSÍVEL)
 .env
-.env.*
-payload*.json
+.env.local
+frontend/.env.local
+
+# Build
+dist/
+frontend/dist/
+
+# Logs e Misc
 *.log
+.DS_Store
+.vscode/
+.gemini/
+brain/
+test_db.js
+simulate_msg.js

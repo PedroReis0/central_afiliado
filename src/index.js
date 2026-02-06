@@ -14,10 +14,21 @@ import { registerCuponsRoutes } from './routes/cupons.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 import { registerMonitorRoutes } from './routes/monitor.js';
 import { registerProdutosAdminRoutes } from './routes/produtos_admin.js';
+import { registerApiV1Routes } from './routes/api_v1.js';
 
 const app = Fastify({
   logger: true
 });
+
+const corsOrigin = process.env.CORS_ORIGIN || '*';
+app.addHook('onSend', async (request, reply, payload) => {
+  reply.header('Access-Control-Allow-Origin', corsOrigin);
+  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Correlation-Id');
+  reply.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
+  return payload;
+});
+
+app.options('/*', async (request, reply) => reply.code(204).send());
 
 registerWebhookRoutes(app);
 registerScraperRoutes(app);
@@ -33,6 +44,7 @@ registerCuponsRoutes(app);
 registerDashboardRoutes(app);
 registerMonitorRoutes(app);
 registerProdutosAdminRoutes(app);
+registerApiV1Routes(app);
 
 const port = Number(process.env.PORT || 3000);
 
@@ -44,3 +56,5 @@ app.listen({ port, host: '0.0.0.0' })
     app.log.error(err);
     process.exit(1);
   });
+
+
