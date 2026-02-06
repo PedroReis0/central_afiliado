@@ -15,7 +15,7 @@ create table if not exists users (
 
 -- Inserir usuário admin padrão (senha: admin) se não existir
 insert into users (email, password_hash, role)
-values ('admin@admin.com', '$2a$10$XQ.9c/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W/a/W', 'admin')
+values ('admin@admin.com', '$2b$10$RJPLwlgHKtlM4uVMNjc1IO3kKkILWpsDOm1ZmIO3CWE/sjCxmnDf2', 'admin')
 on conflict (email) do nothing;
 -- NOTA: O hash acima é placeholder. O script de setup ou o código deve gerar um hash real.
 -- Para 'admin', um hash bcrypt válido seria necessário. 
