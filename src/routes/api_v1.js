@@ -856,7 +856,7 @@ export function registerApiV1Routes(app) {
         return respondError(reply, 422, 'instance_id_or_instance_name_required', correlationId);
       }
 
-      const instanceRes = await query(
+      let instanceRes = await query(
         `select instance_id, instance_name
          from instancias
          where instance_id = $1 or instance_name = $1
