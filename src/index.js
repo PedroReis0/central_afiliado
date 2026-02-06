@@ -16,6 +16,7 @@ import { registerMonitorRoutes } from './routes/monitor.js';
 import { registerProdutosAdminRoutes } from './routes/produtos_admin.js';
 import { verifyJwt } from './middleware/auth.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerApiV1Routes } from './routes/api_v1.js';
 
 const app = Fastify({
   logger: true
