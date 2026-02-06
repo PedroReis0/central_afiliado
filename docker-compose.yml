@@ -1,7 +1,6 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: central_afiliado_db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
@@ -35,7 +34,7 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
     networks:
       - internal
-      - traefik-public
+      - mova
     deploy:
       restart_policy:
         condition: on-failure
@@ -56,7 +55,7 @@ services:
       - backend
     networks:
       - internal
-      - traefik-public
+      - mova
     deploy:
       restart_policy:
         condition: on-failure
@@ -74,5 +73,6 @@ volumes:
 networks:
   internal:
     driver: overlay
-  traefik-public:
+  mova:
     external: true
+    name: mova
