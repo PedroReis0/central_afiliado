@@ -9,9 +9,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-central_afiliado}
     volumes:
       - db_data:/var/lib/postgresql/data
-    configs:
-      - source: db_init
-        target: /docker-entrypoint-initdb.d/init.sql
+      - ./schema.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - internal
     deploy:
@@ -79,11 +77,6 @@ services:
 volumes:
   db_data:
 
-    # Atenção: Você precisa criar essa Config no Portainer antes de dar deploy
-    # Copie o conteúdo de schema.sql e crie uma config chamada 'db_init'
-configs:
-  db_init:
-    external: true
 
 networks:
   internal:
