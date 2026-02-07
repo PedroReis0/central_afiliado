@@ -24,6 +24,7 @@ services:
           - node.role == manager
 
   backend:
+    build: .
     image: central_afiliado_backend:latest
     depends_on:
       - db
@@ -55,6 +56,7 @@ services:
         - "traefik.http.services.central-backend.loadbalancer.server.port=3000"
 
   frontend:
+    build: ./frontend
     image: central_afiliado_frontend:latest
     networks:
       - internal
