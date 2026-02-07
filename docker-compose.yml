@@ -56,7 +56,10 @@ services:
         - "traefik.http.services.central-backend.loadbalancer.server.port=3000"
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ""
     image: central_afiliado_frontend:latest
     networks:
       - internal
